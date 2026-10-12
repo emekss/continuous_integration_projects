@@ -1,0 +1,1 @@
+"""Apartment booking application package."""
