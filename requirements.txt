@@ -1,3 +1,0 @@
-# No third-party packages are needed to run the app (standard library only:
-# argparse, sqlite3, datetime). Tests use the built-in unittest.
-# Optional: pytest   (pip install pytest)  -- it can also run the tests.
