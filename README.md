@@ -40,6 +40,34 @@ use a different file (or `:memory:`):
 BOOKING_DB=/tmp/test.db python booking.py apartment list
 ```
 
+## Docker
+
+This is a CLI, not a web server: the image takes the same arguments as
+`booking.py` and does not expose a port. It needs no runtime packages beyond
+Python's standard library.
+
+```sh
+docker build -t apartment-booking .
+docker run --rm -v booking-data:/data apartment-booking apartment add \
+  --name "Sunny Studio" --address "1 Main St"
+docker run --rm -v booking-data:/data apartment-booking apartment list
+docker run --rm -v booking-data:/data apartment-booking booking create 1 \
+  --from 2026-05-01 --to 2026-05-10
+```
+
+Use the same `booking-data` named volume for every invocation. The SQLite file
+is stored at `/data/booking.db` in that volume, so records survive when a
+container exits or the image is rebuilt. The image runs as UID 10001 and
+does not include the repository's local `booking.db`.
+
+To use an existing local database instead, bind-mount the file (it must
+already exist and be writable by UID 10001):
+
+```sh
+docker run --rm --mount type=bind,src="$(pwd)/booking.db",dst=/data/booking.db \
+  apartment-booking apartment list
+```
+
 ## Architecture
 
 Three layers, so business logic is testable without the CLI or a real
