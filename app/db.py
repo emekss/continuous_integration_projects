@@ -2,7 +2,6 @@ import os
 import sqlite3
 
 DEFAULT_DB_PATH = "booking.db"
-
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS apartment (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
