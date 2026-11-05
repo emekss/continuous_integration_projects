@@ -1,93 +1,133 @@
 # Apartment Booking
 
+A small CLI for managing apartment bookings, backed by SQLite. Built to
+demonstrate a three-layer architecture and a CI pipeline with lint, tests,
+and coverage.
 
+## Setup
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.inf.unibz.it/EmmanuelNwachukwu.Anikwenze/apartment-booking.git
-git branch -M main
-git push -uf origin main
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## Integrate with your tools
-
-* [Set up project integrations](https://gitlab.inf.unibz.it/EmmanuelNwachukwu.Anikwenze/apartment-booking/-/settings/integrations)
-
-## Collaborate with your team
-
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Python 3.11+ required. No other runtime dependencies — only the standard
+library (`argparse`, `sqlite3`).
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```sh
+python booking.py apartment list
+python booking.py apartment add --name "Sunny Studio" --address "1 Main St"
+python booking.py apartment update 1 --name "New Name"
+python booking.py apartment remove 1
+python booking.py apartment search --from 2026-05-01 --to 2026-05-10
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+python booking.py booking list
+python booking.py booking create 1 --from 2026-05-01 --to 2026-05-10
+python booking.py booking change 1 --to 2026-05-12
+python booking.py booking cancel 1
+```
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Dates are ISO `YYYY-MM-DD`. On success commands print to stdout and exit 0;
+on errors a message goes to stderr and the exit code is 1.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+The database is `booking.db` in the current directory. Set `BOOKING_DB` to
+use a different file (or `:memory:`):
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```sh
+BOOKING_DB=/tmp/test.db python booking.py apartment list
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Docker
 
-## License
-For open source projects, say how it is licensed.
+This is a CLI, not a web server: the image takes the same arguments as
+`booking.py` and does not expose a port. It needs no runtime packages beyond
+Python's standard library.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```sh
+docker build -t apartment-booking .
+docker run --rm -v booking-data:/data apartment-booking apartment add \
+  --name "Sunny Studio" --address "1 Main St"
+docker run --rm -v booking-data:/data apartment-booking apartment list
+docker run --rm -v booking-data:/data apartment-booking booking create 1 \
+  --from 2026-05-01 --to 2026-05-10
+```
+
+Use the same `booking-data` named volume for every invocation. The SQLite file
+is stored at `/data/booking.db` in that volume, so records survive when a
+container exits or the image is rebuilt. The image runs as UID 10001 and
+does not include the repository's local `booking.db`.
+
+To use an existing local database instead, bind-mount the file (it must
+already exist and be writable by UID 10001):
+
+```sh
+docker run --rm --mount type=bind,src="$(pwd)/booking.db",dst=/data/booking.db \
+  apartment-booking apartment list
+```
+
+## Architecture
+
+Three layers, so business logic is testable without the CLI or a real
+database file:
+
+```
+CLI (booking.py, app/cli.py)   args parsing, output, exit codes
+      |
+Service layer (app/services.py)  validation, overlap rules
+      |
+Repository layer (app/repository.py)  SQL only
+      |
+SQLite (app/db.py, booking.db)
+```
+
+## Design decisions
+
+- **Dates stored as ISO text** — they sort and compare correctly as strings.
+- **Half-open ranges `[from, to)`** — a guest can check in on the day
+  another checks out. Two bookings overlap when
+  `new_from < existing_to AND new_to > existing_from`.
+- **Change excludes itself** — the overlap query takes
+  `exclude_booking_id` so a booking can be "changed" onto its own dates.
+- **Remove policy: reject** — an apartment with bookings cannot be removed;
+  bookings must be cancelled first (chosen over cascade-delete as the
+  safer, more explicit option).
+- **Apartment IDs** — new apartments take the lowest available positive ID,
+  filling gaps left by removals. Existing apartments are never renumbered,
+  so bookings still refer to the same apartment. A removed apartment's ID
+  may later refer to a different apartment; do not treat IDs as permanent
+  historical references.
+- **Validation** — `from < to`, strict ISO dates, referenced apartments
+  must exist. Empty names/addresses are rejected.
+
+## Development
+
+```sh
+pytest --cov=app --cov-fail-under=80
+ruff check .
+```
+
+## GitHub Actions
+
+The workflow in `.github/workflows/ci.yml` runs Ruff, tests, and an 80%
+coverage gate on Python 3.11-3.14. It also builds the Docker image and
+checks that SQLite data survives between container invocations. Checks run
+on pull requests and pushes to `main` (or manually via Actions).
+
+To publish a release, push a version tag after the changes are on `main`:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The tag runs all checks before publishing
+`ghcr.io/emekss/continuous_integration_projects:v1.0.0` to GitHub Container
+Registry. Publication uses the built-in `GITHUB_TOKEN` with `packages: write`;
+no personal access token is needed. GitHub Packages may make the image
+private initially; change its visibility in the repository's Packages
+settings if you want unauthenticated pulls. This CLI has no server deployment
+step: run the published image wherever you want, attaching a persistent
+volume at `/data`.
