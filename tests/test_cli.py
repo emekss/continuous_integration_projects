@@ -22,7 +22,7 @@ def test_apartment_add_and_list(cli, capsys):
     capsys.readouterr()
     assert cli("apartment", "list") == 0
     out = capsys.readouterr().out
-    assert "Loft" in out and "1 St" in out
+    assert "Penthouse" in out and "1 St" in out
 
 
 def test_apartment_add_reuses_available_id(cli, capsys):
