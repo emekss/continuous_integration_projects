@@ -109,5 +109,25 @@ pytest --cov=app --cov-fail-under=80
 ruff check .
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint, tests, and coverage on every
-push and pull request.
+## GitHub Actions
+
+The workflow in `.github/workflows/ci.yml` runs Ruff, tests, and an 80%
+coverage gate on Python 3.11-3.14. It also builds the Docker image and
+checks that SQLite data survives between container invocations. Checks run
+on pull requests and pushes to `main` (or manually via Actions).
+
+To publish a release, push a version tag after the changes are on `main`:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The tag runs all checks before publishing
+`ghcr.io/emekss/continuous_integration_projects:v1.0.0` to GitHub Container
+Registry. Publication uses the built-in `GITHUB_TOKEN` with `packages: write`;
+no personal access token is needed. GitHub Packages may make the image
+private initially; change its visibility in the repository's Packages
+settings if you want unauthenticated pulls. This CLI has no server deployment
+step: run the published image wherever you want, attaching a persistent
+volume at `/data`.
