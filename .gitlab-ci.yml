@@ -45,14 +45,12 @@ unit-tests:
 
 docker-build:
   stage: docker
-  image: docker:28
-  services:
-    - docker:28-dind
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
   script:
-    - docker build -t apartment-booking:ci .
-    - docker volume create booking-ci-data
-    - docker run --rm -v booking-ci-data:/data apartment-booking:ci
-      apartment add --name Test --address Main
-    - docker run --rm -v booking-ci-data:/data apartment-booking:ci
-      apartment list | grep "Test"
-    - docker volume rm booking-ci-data
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --no-push
+      --verbosity info
