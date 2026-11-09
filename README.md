@@ -40,32 +40,49 @@ use a different file (or `:memory:`):
 BOOKING_DB=/tmp/test.db python booking.py apartment list
 ```
 
-## Docker
+## Web app
 
-This is a CLI, not a web server: the image takes the same arguments as
-`booking.py` and does not expose a port. It needs no runtime packages beyond
-Python's standard library.
+The same data is also available through a small web UI built on the standard
+library `http.server` — no extra dependencies:
+
+```sh
+python -m app.web
+```
+
+Then open http://localhost:8000 — you can add/remove apartments, create and
+cancel bookings, and search availability. Set `PORT` to listen elsewhere:
+
+```sh
+PORT=3000 python -m app.web
+```
+
+## Docker
 
 ```sh
 docker build -t apartment-booking .
-docker run --rm -v booking-data:/data apartment-booking apartment add \
-  --name "Sunny Studio" --address "1 Main St"
-docker run --rm -v booking-data:/data apartment-booking apartment list
-docker run --rm -v booking-data:/data apartment-booking booking create 1 \
-  --from 2026-05-01 --to 2026-05-10
+docker run --rm -p 8000:8000 -v booking-data:/data apartment-booking
 ```
 
-Use the same `booking-data` named volume for every invocation. The SQLite file
-is stored at `/data/booking.db` in that volume, so records survive when a
-container exits or the image is rebuilt. The image runs as UID 10001 and
-does not include the repository's local `booking.db`.
+Then open http://localhost:8000. The web server listens on `PORT` (default
+8000) and stores the SQLite file at `/data/booking.db` in the `booking-data`
+volume, so records survive when the container exits or the image is rebuilt.
+The image runs as UID 10001 and does not include the repository's local
+`booking.db`.
+
+The CLI still works inside the image by overriding the default command:
+
+```sh
+docker run --rm -v booking-data:/data apartment-booking \
+  python booking.py apartment list
+```
 
 To use an existing local database instead, bind-mount the file (it must
 already exist and be writable by UID 10001):
 
 ```sh
-docker run --rm --mount type=bind,src="$(pwd)/booking.db",dst=/data/booking.db \
-  apartment-booking apartment list
+docker run --rm -p 8000:8000 \
+  --mount type=bind,src="$(pwd)/booking.db",dst=/data/booking.db \
+  apartment-booking
 ```
 
 ## Architecture
