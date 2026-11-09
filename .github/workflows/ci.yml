@@ -31,14 +31,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t apartment-booking:ci .
-      - name: Smoke test persistent SQLite volume
+      - name: Smoke test web server on port 8000
         run: |
           docker volume create booking-ci-data
-          trap 'docker volume rm booking-ci-data' EXIT
-          docker run --rm -v booking-ci-data:/data apartment-booking:ci \
-            apartment add --name Test --address Main
-          test "$(docker run --rm -v booking-ci-data:/data apartment-booking:ci apartment list)" \
-            = "$(printf '1\tTest\tMain')"
+          docker run -d --name booking-app -p 8000:8000 \
+            -v booking-ci-data:/data apartment-booking:ci
+          trap 'docker rm -f booking-app; docker volume rm booking-ci-data' EXIT
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/ > /dev/null && break
+            sleep 1
+          done
+          curl -sf -d 'name=Test&address=Main' http://localhost:8000/apartments \
+            -o /dev/null
+          curl -sf http://localhost:8000/ | grep -q "Test"
 
   publish:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
