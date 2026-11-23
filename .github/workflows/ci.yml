@@ -30,28 +30,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t apartment-booking:ci .
-      - name: Smoke test web server on port 8000
+      - run: |
+          docker volume create booking-data
+          docker compose up -d --build
+      - name: Smoke test through the nginx gateway
         run: |
-          docker volume create booking-ci-data
-          docker run -d --name booking-app -p 8000:8000 \
-            -v booking-ci-data:/data apartment-booking:ci
-          trap 'docker rm -f booking-app; docker volume rm booking-ci-data' EXIT
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:8000/api/health > /dev/null && break
+          for i in $(seq 1 45); do
+            curl -sf http://localhost:8080/api/health > /dev/null && break
             sleep 1
           done
           curl -sf -c cookies.txt -X POST -H 'Content-Type: application/json' \
             -d '{"email":"ci@example.com","password":"password123"}' \
-            http://localhost:8000/api/auth/register
+            http://localhost:8080/api/auth/register
           curl -sf -b cookies.txt -X POST -H 'Content-Type: application/json' \
             -d '{"name":"Test","address":"Main"}' \
-            http://localhost:8000/api/apartments
-          curl -sf -b cookies.txt http://localhost:8000/api/apartments \
+            http://localhost:8080/api/apartments
+          curl -sf -b cookies.txt http://localhost:8080/api/apartments \
             | grep -q "Test"
           test "$(curl -s -o /dev/null -w '%{http_code}' \
-            http://localhost:8000/api/apartments)" = "401"
-          curl -sf http://localhost:8000/ | grep -qi "<div id=\"root\">"
+            http://localhost:8080/api/apartments)" = "401"
+          curl -sf http://localhost:8080/ | grep -qi "<div id=\"root\">"
+      - name: Tear down compose stack
+        if: always()
+        run: docker compose down && docker volume rm booking-data
 
   publish:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')

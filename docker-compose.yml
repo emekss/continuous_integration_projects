@@ -1,0 +1,19 @@
+services:
+  backend:
+    build: .
+    environment:
+      PORT: "8000"
+      BOOKING_DB: /data/booking.db
+    volumes:
+      - booking-data:/data
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  booking-data:
+    external: true

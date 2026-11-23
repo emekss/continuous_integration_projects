@@ -92,17 +92,30 @@ python -m app.web
 
 ## Docker
 
+### Full stack with nginx gateway (recommended)
+
 ```sh
-docker build -t apartment-booking .
-docker run --rm -p 8000:8000 -v booking-data:/data apartment-booking
+docker volume create booking-data   # first run only
+docker compose up --build
 ```
 
-Then open http://localhost:8000. The image is multi-stage: Node builds the
-React frontend, and the Python server serves the built UI plus the API on
-`PORT` (default 8000). The SQLite file lives at `/data/booking.db` in the
-`booking-data` volume, so records survive when the container exits or the
-image is rebuilt. The image runs as UID 10001 and does not include the
-repository's local `booking.db`.
+Then open http://localhost:8080. Two containers run: an **nginx** frontend
+serving the React build and reverse-proxying `/api/*` to the **Python
+backend** (internal port 8000, not exposed). SQLite persists in the external
+`booking-data` volume — `docker compose down` never deletes it.
+
+### Single container
+
+The backend image can also run standalone — it bundles the built frontend
+and serves UI + API on `PORT`:
+
+```sh
+docker build -t apartment-booking .
+docker run --rm -p 8080:8000 -v booking-data:/data apartment-booking
+```
+
+Then open http://localhost:8080. The image runs as UID 10001 and does not
+include the repository's local `booking.db`.
 
 The CLI still works inside the image by overriding the default command:
 
