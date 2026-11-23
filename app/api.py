@@ -10,14 +10,20 @@ from urllib.parse import parse_qs, urlparse
 
 from app import auth, db, notify
 from app.errors import BookingError
+from app.repository import ApartmentRepository
 from app.services import ApartmentService, BookingService
 
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 SESSION_COOKIE = "booking_session"
 
 
-def apartment_json(a) -> dict:
-    return {"id": a.id, "name": a.name, "address": a.address}
+def apartment_json(a, owner_email: str | None = None) -> dict:
+    return {
+        "id": a.id,
+        "name": a.name,
+        "address": a.address,
+        "owner": owner_email,
+    }
 
 
 def booking_json(b) -> dict:
@@ -122,8 +128,15 @@ class ApiHandler(BaseHTTPRequestHandler):
 
     def ep_auth(self, conn, path: str, data: dict) -> None:
         if path == "/api/auth/register":
+            email = data.get("email", "").strip().lower()
             user_id = auth.create_user(
                 conn, data.get("email", ""), data.get("password", "")
+            )
+            notify.publish(
+                {
+                    "event": "user_registered",
+                    "user": {"id": user_id, "email": email},
+                }
             )
             token = auth.create_session(conn, user_id)
             self._json(
@@ -163,8 +176,8 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._error("Not found", 404)
 
     def ep_apartments(self, conn) -> None:
-        apartments = ApartmentService(conn).list()
-        self._json([apartment_json(a) for a in apartments])
+        rows = ApartmentRepository(conn).list_with_owners()
+        self._json([apartment_json(a, email) for a, email in rows])
 
     def ep_bookings(self, conn) -> None:
         bookings = BookingService(conn).list()
@@ -179,7 +192,7 @@ class ApiHandler(BaseHTTPRequestHandler):
 
     def ep_add_apartment(self, conn, data: dict, user: dict) -> None:
         apt = ApartmentService(conn).add(
-            data.get("name", ""), data.get("address", "")
+            data.get("name", ""), data.get("address", ""), user["id"]
         )
         notify.publish(
             {
@@ -188,7 +201,7 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "apartment": apartment_json(apt),
             }
         )
-        self._json(apartment_json(apt), 201)
+        self._json(apartment_json(apt, user["email"]), 201)
 
     def ep_create_booking(self, conn, data: dict) -> None:
         booking = BookingService(conn).create(

@@ -37,6 +37,9 @@ services:
     command: ["python", "-m", "app.consumer"]
     environment:
       RABBITMQ_HOST: rabbitmq
+      BOOKING_DB: /data/booking.db
+    volumes:
+      - booking-data:/data
     depends_on:
       rabbitmq:
         condition: service_healthy

@@ -5,6 +5,7 @@ import urllib.request
 
 import pytest
 
+from app import db, projection
 from app.auth_service import AuthHandler
 from app.booking_service import BookingApiHandler
 from app.web import WebHandler, make_server
@@ -47,10 +48,16 @@ def test_session_works_across_split_services(services):
         {"email": "svc@example.com", "password": "password123"},
     )
     session = resp.headers["Set-Cookie"].split(";")[0]
-    assert get_json(f"{booking_url}/api/apartments", session) == []
+    # without replication the booking service cannot resolve the session
     with pytest.raises(urllib.error.HTTPError) as excinfo:
-        request_json(f"{booking_url}/api/apartments")
+        get_json(f"{booking_url}/api/apartments", session)
     assert excinfo.value.code == 401
+    # simulate the consumer applying the user_registered event
+    user = json.loads(resp.read())
+    conn = db.connect()
+    projection.upsert_user(conn, user["id"], user["email"])
+    conn.close()
+    assert get_json(f"{booking_url}/api/apartments", session) == []
 
 
 def request_json(url, payload=None, method=None, cookie=None):
@@ -131,7 +138,9 @@ def test_apartment_add_and_list(base_url, cookie):
     )
     assert created["id"] == 1
     apartments = get_json(f"{base_url}/api/apartments", cookie)
-    assert apartments == [{"id": 1, "name": "Loft", "address": "1 St"}]
+    assert apartments == [
+        {"id": 1, "name": "Loft", "address": "1 St", "owner": None}
+    ]
 
 
 def test_booking_flow(base_url, cookie):
@@ -169,7 +178,9 @@ def test_search_lists_available_apartments(base_url, cookie):
         f"{base_url}/api/search?date_from=2026-06-01&date_to=2026-06-05",
         cookie,
     )
-    assert results == [{"id": 1, "name": "A", "address": "B"}]
+    assert results == [
+        {"id": 1, "name": "A", "address": "B", "owner": None}
+    ]
 
 
 def test_health(base_url):

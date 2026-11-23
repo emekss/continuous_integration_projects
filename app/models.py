@@ -6,6 +6,7 @@ class Apartment:
     id: int
     name: str
     address: str
+    owner_id: int | None = None
 
 
 @dataclass

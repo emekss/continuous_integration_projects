@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
-from app import db
+from app import auth, db
 from app.api import ApiHandler, run
 from app.errors import BookingError
 
@@ -10,9 +10,18 @@ from app.errors import BookingError
 class BookingApiHandler(ApiHandler):
     """Booking microservice: apartments, bookings and availability.
 
-    Validates sessions by reading the shared SQLite `session` table, so
-    cookies issued by the auth service work here without a service call.
+    Validates sessions against `user_projection` — its own replica of
+    auth's `users` table, kept in sync by `user_registered` events from
+    the message queue — so it never reads the auth-owned table.
     """
+
+    def _user(self, conn) -> dict | None:
+        token = self._token()
+        if not token:
+            return None
+        return auth.user_for_token(
+            conn, token, user_table="user_projection"
+        )
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)

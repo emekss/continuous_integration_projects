@@ -5,10 +5,14 @@ import time
 
 import pika
 
+from app import db, projection
 from app.notify import HOST, QUEUE
 
 
 def main() -> None:  # pragma: no cover - long-running worker
+    db_conn = db.connect()
+    projection.backfill_users(db_conn)
+
     while True:
         try:
             conn = pika.BlockingConnection(pika.ConnectionParameters(host=HOST))
@@ -22,12 +26,19 @@ def main() -> None:  # pragma: no cover - long-running worker
 
     def on_message(ch, method, properties, body):
         event = json.loads(body)
-        name = event.get("apartment", {}).get("name", "?")
-        print(
-            f"Notification to {event.get('user')}: "
-            f"{event.get('event')} — {name}",
-            flush=True,
-        )
+        if event.get("event") == "user_registered":
+            user = event.get("user", {})
+            projection.upsert_user(
+                db_conn, user.get("id"), user.get("email", "")
+            )
+            print(f"replicated user {user.get('email')}", flush=True)
+        else:
+            name = event.get("apartment", {}).get("name", "?")
+            print(
+                f"Notification to {event.get('user')}: "
+                f"{event.get('event')} — {name}",
+                flush=True,
+            )
         ch.basic_ack(method.delivery_tag)
 
     channel.basic_consume(queue=QUEUE, on_message_callback=on_message)

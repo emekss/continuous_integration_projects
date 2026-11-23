@@ -110,10 +110,18 @@ browser ──► nginx :80 (serves React build)
 ```
 
 The **auth-service** handles register/login/logout/me; the
-**booking-service** handles apartments, bookings and search and validates
-sessions by reading the same SQLite `session` table — the frontend only ever
-talks to the nginx gateway. SQLite persists in the external `booking-data`
-volume — `docker compose down` never deletes it.
+**booking-service** handles apartments, bookings and search — the frontend
+only ever talks to the nginx gateway. SQLite persists in the external
+`booking-data` volume — `docker compose down` never deletes it.
+
+Data replication via the message queue: auth-service owns the `users`
+table and publishes `user_registered` events on registration. The consumer
+worker maintains a `user_projection` table — the booking service's local
+copy of user data — and backfills it from `users` on startup. The booking
+service resolves sessions and apartment owner emails by joining its own
+projection, never reading the auth-owned table directly. Each new
+apartment records its creator in `apartment.owner_id`, and `GET
+/api/apartments` returns an `owner` field with the owner's email.
 
 The RabbitMQ management console is at http://localhost:15672
 (`guest`/`guest`).

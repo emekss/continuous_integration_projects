@@ -9,35 +9,48 @@ class ApartmentRepository:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
 
-    def create(self, name: str, address: str) -> Apartment:
+    def create(
+        self, name: str, address: str, owner_id: int | None = None
+    ) -> Apartment:
         cur = self.conn.execute(
             """
-            INSERT INTO apartment (id, name, address)
+            INSERT INTO apartment (id, name, address, owner_id)
             VALUES (
                 (SELECT MIN(candidate) FROM (
                     SELECT 1 AS candidate
                     UNION ALL SELECT id + 1 FROM apartment
                 ) WHERE candidate NOT IN (SELECT id FROM apartment)),
-                ?, ?
+                ?, ?, ?
             )
             """,
-            (name, address),
+            (name, address, owner_id),
         )
         self.conn.commit()
-        return Apartment(id=cur.lastrowid, name=name, address=address)
+        return Apartment(
+            id=cur.lastrowid, name=name, address=address, owner_id=owner_id
+        )
 
     def get(self, apartment_id: int) -> Apartment | None:
         row = self.conn.execute(
-            "SELECT id, name, address FROM apartment WHERE id = ?",
+            "SELECT id, name, address, owner_id FROM apartment WHERE id = ?",
             (apartment_id,),
         ).fetchone()
         return Apartment(*row) if row else None
 
     def list(self) -> list[Apartment]:
         rows = self.conn.execute(
-            "SELECT id, name, address FROM apartment ORDER BY id"
+            "SELECT id, name, address, owner_id FROM apartment ORDER BY id"
         ).fetchall()
         return [Apartment(*r) for r in rows]
+
+    def list_with_owners(self) -> list[tuple[Apartment, str | None]]:
+        rows = self.conn.execute(
+            "SELECT a.id, a.name, a.address, a.owner_id, up.email"
+            " FROM apartment a"
+            " LEFT JOIN user_projection up ON up.id = a.owner_id"
+            " ORDER BY a.id"
+        ).fetchall()
+        return [(Apartment(*r[:4]), r[4]) for r in rows]
 
     def update(
         self,
@@ -55,7 +68,12 @@ class ApartmentRepository:
             (new_name, new_address, apartment_id),
         )
         self.conn.commit()
-        return Apartment(id=apartment_id, name=new_name, address=new_address)
+        return Apartment(
+            id=apartment_id,
+            name=new_name,
+            address=new_address,
+            owner_id=apt.owner_id,
+        )
 
     def delete(self, apartment_id: int) -> bool:
         cur = self.conn.execute(
@@ -76,7 +94,7 @@ class ApartmentRepository:
     def search_available(self, date_from: str, date_to: str) -> list[Apartment]:
         rows = self.conn.execute(
             """
-            SELECT a.id, a.name, a.address FROM apartment a
+            SELECT a.id, a.name, a.address, a.owner_id FROM apartment a
             WHERE NOT EXISTS (
                 SELECT 1 FROM booking b
                 WHERE b.apartment_id = a.id

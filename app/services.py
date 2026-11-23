@@ -30,12 +30,14 @@ class ApartmentService:
     def __init__(self, conn: sqlite3.Connection):
         self.apartments = ApartmentRepository(conn)
 
-    def add(self, name: str, address: str) -> Apartment:
+    def add(
+        self, name: str, address: str, owner_id: int | None = None
+    ) -> Apartment:
         if not name.strip():
             raise ValidationError("name must not be empty.")
         if not address.strip():
             raise ValidationError("address must not be empty.")
-        return self.apartments.create(name, address)
+        return self.apartments.create(name, address, owner_id)
 
     def get(self, apartment_id: int) -> Apartment:
         apt = self.apartments.get(apartment_id)

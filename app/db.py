@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS session (
     user_id    INTEGER NOT NULL REFERENCES users(id),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS user_projection (
+    id    INTEGER PRIMARY KEY,
+    email TEXT NOT NULL
+);
 """
 
 
@@ -39,4 +44,12 @@ def connect(db_path: str | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path or get_db_path())
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(apartment)")}
+    if "owner_id" not in cols:
+        conn.execute("ALTER TABLE apartment ADD COLUMN owner_id INTEGER")
+        conn.commit()

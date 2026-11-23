@@ -64,11 +64,11 @@ def create_session(conn: sqlite3.Connection, user_id: int) -> str:
 
 
 def user_for_token(
-    conn: sqlite3.Connection, token: str
+    conn: sqlite3.Connection, token: str, user_table: str = "users"
 ) -> dict | None:
     row = conn.execute(
-        "SELECT u.id, u.email FROM session s"
-        " JOIN users u ON u.id = s.user_id WHERE s.token = ?",
+        f"SELECT u.id, u.email FROM session s"
+        f" JOIN {user_table} u ON u.id = s.user_id WHERE s.token = ?",
         (token,),
     ).fetchone()
     return {"id": row[0], "email": row[1]} if row else None

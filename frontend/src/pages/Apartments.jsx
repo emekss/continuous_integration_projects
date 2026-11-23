@@ -56,13 +56,14 @@ export default function Apartments() {
             <th>ID</th>
             <th>Name</th>
             <th>Address</th>
+            <th>Owner</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {apartments.length === 0 && (
             <tr>
-              <td colSpan="4">No apartments yet.</td>
+              <td colSpan="5">No apartments yet.</td>
             </tr>
           )}
           {apartments.map((a) => (
@@ -70,6 +71,7 @@ export default function Apartments() {
               <td>{a.id}</td>
               <td>{a.name}</td>
               <td>{a.address}</td>
+              <td>{a.owner ?? "—"}</td>
               <td>
                 <button onClick={() => remove(a.id)}>Remove</button>
               </td>
