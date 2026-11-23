@@ -42,18 +42,37 @@ BOOKING_DB=/tmp/test.db python booking.py apartment list
 
 ## Web app
 
-The same data is also available through a small web UI built on the standard
-library `http.server` — no extra dependencies:
+The backend is a small stdlib `http.server` JSON API (`python -m app.web`,
+port 8000 by default, override with `PORT`). The frontend is a React app in
+`frontend/` built with Vite.
+
+API endpoints: `GET/POST /api/apartments`, `DELETE /api/apartments/{id}`,
+`GET/POST /api/bookings`, `DELETE /api/bookings/{id}`,
+`GET /api/search?date_from&date_to`, `GET /api/health`.
+
+### Frontend development
 
 ```sh
-python -m app.web
+cd frontend
+npm install
+npm run dev
 ```
 
-Then open http://localhost:8000 — you can add/remove apartments, create and
-cancel bookings, and search availability. Set `PORT` to listen elsewhere:
+Vite serves the UI on http://localhost:5173 and proxies `/api` to the backend
+on port 8080 — start both for development (e.g.
+`PORT=8080 python -m app.web`, or the Docker container mapped with
+`-p 8080:8000`). Override the proxy target with `BOOKING_API_URL`:
 
 ```sh
-PORT=3000 python -m app.web
+BOOKING_API_URL=http://localhost:8000 npm run dev
+```
+
+For a production-style local run, build the frontend and let the Python
+server serve it on port 8000:
+
+```sh
+cd frontend && npm run build && cd ..
+python -m app.web
 ```
 
 ## Docker
@@ -63,11 +82,12 @@ docker build -t apartment-booking .
 docker run --rm -p 8000:8000 -v booking-data:/data apartment-booking
 ```
 
-Then open http://localhost:8000. The web server listens on `PORT` (default
-8000) and stores the SQLite file at `/data/booking.db` in the `booking-data`
-volume, so records survive when the container exits or the image is rebuilt.
-The image runs as UID 10001 and does not include the repository's local
-`booking.db`.
+Then open http://localhost:8000. The image is multi-stage: Node builds the
+React frontend, and the Python server serves the built UI plus the API on
+`PORT` (default 8000). The SQLite file lives at `/data/booking.db` in the
+`booking-data` volume, so records survive when the container exits or the
+image is rebuilt. The image runs as UID 10001 and does not include the
+repository's local `booking.db`.
 
 The CLI still works inside the image by overriding the default command:
 
