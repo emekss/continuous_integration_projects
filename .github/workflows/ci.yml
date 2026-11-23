@@ -49,6 +49,11 @@ jobs:
             | grep -q "Test"
           test "$(curl -s -o /dev/null -w '%{http_code}' \
             http://localhost:8080/api/apartments)" = "401"
+          for i in $(seq 1 15); do
+            docker compose logs consumer | grep -q "apartment_added" && break
+            sleep 1
+          done
+          docker compose logs consumer | grep -q "apartment_added"
           curl -sf http://localhost:8080/ | grep -qi "<div id=\"root\">"
       - name: Tear down compose stack
         if: always()

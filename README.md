@@ -99,10 +99,38 @@ docker volume create booking-data   # first run only
 docker compose up --build
 ```
 
-Then open http://localhost:8080. Two containers run: an **nginx** frontend
-serving the React build and reverse-proxying `/api/*` to the **Python
-backend** (internal port 8000, not exposed). SQLite persists in the external
-`booking-data` volume — `docker compose down` never deletes it.
+Then open http://localhost:8080. The stack is microservice-based:
+
+```
+browser ──► nginx :80 (serves React build)
+              ├── /api/auth/*, /api/me → auth-service :8000
+              ├── /api/*               → booking-service :8000 ──► RabbitMQ
+              └──                        (consumer worker)         ▲
+                     both services share booking-data (/data/booking.db)
+```
+
+The **auth-service** handles register/login/logout/me; the
+**booking-service** handles apartments, bookings and search and validates
+sessions by reading the same SQLite `session` table — the frontend only ever
+talks to the nginx gateway. SQLite persists in the external `booking-data`
+volume — `docker compose down` never deletes it.
+
+The RabbitMQ management console is at http://localhost:15672
+(`guest`/`guest`).
+
+### Notifications
+
+When a signed-in user adds or deletes an apartment, the backend publishes a
+`booking_events` message to RabbitMQ. The consumer service receives it and
+"notifies the user" by logging:
+
+```sh
+docker compose logs -f consumer
+# Notification to you@example.com: apartment_added — Sunny Studio
+```
+
+Set `RABBITMQ_HOST`/`RABBITMQ_QUEUE` to point elsewhere; without a broker the
+API still works — notifications are best-effort.
 
 ### Single container
 

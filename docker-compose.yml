@@ -1,18 +1,53 @@
 services:
-  backend:
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "15672:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  auth-service:
     build: .
+    image: booking-backend
+    command: ["python", "-m", "app.auth_service"]
     environment:
       PORT: "8000"
       BOOKING_DB: /data/booking.db
     volumes:
       - booking-data:/data
 
+  booking-service:
+    image: booking-backend
+    command: ["python", "-m", "app.booking_service"]
+    environment:
+      PORT: "8000"
+      BOOKING_DB: /data/booking.db
+      RABBITMQ_HOST: rabbitmq
+    volumes:
+      - booking-data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  consumer:
+    image: booking-backend
+    command: ["python", "-m", "app.consumer"]
+    environment:
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   frontend:
     build: ./frontend
     ports:
       - "8080:80"
     depends_on:
-      - backend
+      - auth-service
+      - booking-service
 
 volumes:
   booking-data:

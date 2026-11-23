@@ -13,6 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     BOOKING_DB=/data/booking.db
 
 WORKDIR /app
+RUN pip install --no-cache-dir "pika>=1.3,<2"
+
 COPY app/ ./app/
 COPY booking.py ./
 COPY --from=frontend /build/dist ./frontend/dist

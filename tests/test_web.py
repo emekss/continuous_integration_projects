@@ -5,16 +5,52 @@ import urllib.request
 
 import pytest
 
-from app.web import make_server
+from app.auth_service import AuthHandler
+from app.booking_service import BookingApiHandler
+from app.web import WebHandler, make_server
+
+
+def start_server(handler, tmp_path, monkeypatch):
+    monkeypatch.setenv("BOOKING_DB", str(tmp_path / "booking.db"))
+    server = make_server("127.0.0.1", 0, handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
 
 
 @pytest.fixture
 def base_url(tmp_path, monkeypatch):
-    monkeypatch.setenv("BOOKING_DB", str(tmp_path / "booking.db"))
-    server = make_server("127.0.0.1", 0)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    server = start_server(WebHandler, tmp_path, monkeypatch)
     yield f"http://127.0.0.1:{server.server_address[1]}"
     server.shutdown()
+
+
+@pytest.fixture
+def services(tmp_path, monkeypatch):
+    db_file = tmp_path / "booking.db"
+    monkeypatch.setenv("BOOKING_DB", str(db_file))
+    auth = make_server("127.0.0.1", 0, AuthHandler)
+    booking = make_server("127.0.0.1", 0, BookingApiHandler)
+    threading.Thread(target=auth.serve_forever, daemon=True).start()
+    threading.Thread(target=booking.serve_forever, daemon=True).start()
+    yield (
+        f"http://127.0.0.1:{auth.server_address[1]}",
+        f"http://127.0.0.1:{booking.server_address[1]}",
+    )
+    auth.shutdown()
+    booking.shutdown()
+
+
+def test_session_works_across_split_services(services):
+    auth_url, booking_url = services
+    resp = request_json(
+        f"{auth_url}/api/auth/register",
+        {"email": "svc@example.com", "password": "password123"},
+    )
+    session = resp.headers["Set-Cookie"].split(";")[0]
+    assert get_json(f"{booking_url}/api/apartments", session) == []
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        request_json(f"{booking_url}/api/apartments")
+    assert excinfo.value.code == 401
 
 
 def request_json(url, payload=None, method=None, cookie=None):
