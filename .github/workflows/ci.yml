@@ -41,10 +41,16 @@ jobs:
             curl -sf http://localhost:8000/api/health > /dev/null && break
             sleep 1
           done
-          curl -sf -X POST -H 'Content-Type: application/json' \
+          curl -sf -c cookies.txt -X POST -H 'Content-Type: application/json' \
+            -d '{"email":"ci@example.com","password":"password123"}' \
+            http://localhost:8000/api/auth/register
+          curl -sf -b cookies.txt -X POST -H 'Content-Type: application/json' \
             -d '{"name":"Test","address":"Main"}' \
             http://localhost:8000/api/apartments
-          curl -sf http://localhost:8000/api/apartments | grep -q "Test"
+          curl -sf -b cookies.txt http://localhost:8000/api/apartments \
+            | grep -q "Test"
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            http://localhost:8000/api/apartments)" = "401"
           curl -sf http://localhost:8000/ | grep -qi "<div id=\"root\">"
 
   publish:

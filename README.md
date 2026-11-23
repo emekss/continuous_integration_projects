@@ -50,6 +50,21 @@ API endpoints: `GET/POST /api/apartments`, `DELETE /api/apartments/{id}`,
 `GET/POST /api/bookings`, `DELETE /api/bookings/{id}`,
 `GET /api/search?date_from&date_to`, `GET /api/health`.
 
+### Authentication
+
+Email + password auth is built in — no dependencies. Passwords are hashed
+with PBKDF2 (`hashlib.pbkdf2_hmac`, per-user salt), sessions are opaque
+tokens stored in SQLite and sent as an HttpOnly `booking_session` cookie.
+
+- `POST /api/auth/register` `{email, password}` — creates the account and
+  signs you in
+- `POST /api/auth/login` `{email, password}` — sets the session cookie
+- `POST /api/auth/logout` — clears the session
+- `GET /api/me` — current user, 401 when signed out
+
+All other `/api` endpoints return 401 without a session; the React app
+redirects to `/login` when unauthenticated.
+
 ### Frontend development
 
 ```sh

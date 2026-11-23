@@ -3,15 +3,18 @@ from __future__ import annotations
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.cookies import SimpleCookie
 from mimetypes import guess_type
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from app import db
+from app import auth, db
 from app.errors import BookingError
 from app.services import ApartmentService, BookingService
 
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+SESSION_COOKIE = "booking_session"
+PUBLIC_PATHS = {"/api/health", "/api/auth/register", "/api/auth/login"}
 
 
 def _apartment_json(a) -> dict:
@@ -28,11 +31,13 @@ def _booking_json(b) -> dict:
 
 
 class BookingHandler(BaseHTTPRequestHandler):
-    def _json(self, data, status: int = 200) -> None:
+    def _json(self, data, status: int = 200, headers=None) -> None:
         body = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -47,6 +52,22 @@ class BookingHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             data = {}
         return data if isinstance(data, dict) else {}
+
+    def _token(self) -> str:
+        cookie = SimpleCookie(self.headers.get("Cookie"))
+        morsel = cookie.get(SESSION_COOKIE)
+        return morsel.value if morsel else ""
+
+    def _user(self, conn) -> dict | None:
+        token = self._token()
+        return auth.user_for_token(conn, token) if token else None
+
+    def _session_headers(self, token: str) -> dict:
+        return {
+            "Set-Cookie": (
+                f"{SESSION_COOKIE}={token}; HttpOnly; Path=/; SameSite=Lax"
+            )
+        }
 
     def _serve_static(self, path: str) -> None:
         target = (DIST_DIR / path.lstrip("/")).resolve()
@@ -65,6 +86,51 @@ class BookingHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _auth(self, path: str, data: dict, conn) -> None:
+        if path == "/api/auth/register":
+            user_id = auth.create_user(
+                conn, data.get("email", ""), data.get("password", "")
+            )
+            token = auth.create_session(conn, user_id)
+            self._json(
+                {"id": user_id, "email": data.get("email", "").strip().lower()},
+                201,
+                self._session_headers(token),
+            )
+        elif path == "/api/auth/login":
+            user_id = auth.authenticate(
+                conn, data.get("email", ""), data.get("password", "")
+            )
+            if user_id is None:
+                self._error("Invalid email or password", 401)
+                return
+            token = auth.create_session(conn, user_id)
+            user = auth.user_for_token(conn, token)
+            self._json(user, 200, self._session_headers(token))
+        elif path == "/api/auth/logout":
+            token = self._token()
+            if token:
+                auth.delete_session(conn, token)
+            self._json(
+                {"logged_out": True},
+                headers={
+                    "Set-Cookie": (
+                        f"{SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0"
+                    )
+                },
+            )
+        else:
+            self._error("Not found", 404)
+
+    def _require_user(self, path: str, conn) -> dict | None:
+        if path in PUBLIC_PATHS:
+            return {"public": True}
+        user = self._user(conn)
+        if user is None:
+            self._error("Authentication required", 401)
+            return None
+        return user
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if not parsed.path.startswith("/api/"):
@@ -72,6 +138,16 @@ class BookingHandler(BaseHTTPRequestHandler):
             return
         conn = db.connect()
         try:
+            if parsed.path == "/api/me":
+                user = self._user(conn)
+                if user is None:
+                    self._error("Not authenticated", 401)
+                else:
+                    self._json(user)
+                return
+            user = self._require_user(parsed.path, conn)
+            if user is None:
+                return
             apartments = ApartmentService(conn)
             if parsed.path == "/api/health":
                 self._json({"status": "ok"})
@@ -98,6 +174,11 @@ class BookingHandler(BaseHTTPRequestHandler):
         data = self._body()
         conn = db.connect()
         try:
+            if path.startswith("/api/auth/"):
+                self._auth(path, data, conn)
+                return
+            if self._require_user(path, conn) is None:
+                return
             if path == "/api/apartments":
                 apt = ApartmentService(conn).add(
                     data.get("name", ""), data.get("address", "")
@@ -118,9 +199,12 @@ class BookingHandler(BaseHTTPRequestHandler):
             conn.close()
 
     def do_DELETE(self) -> None:
-        parts = urlparse(self.path).path.strip("/").split("/")
+        path = urlparse(self.path).path
+        parts = path.strip("/").split("/")
         conn = db.connect()
         try:
+            if self._require_user(path, conn) is None:
+                return
             if len(parts) != 3 or parts[0] != "api":
                 self._error("Not found", 404)
                 return
